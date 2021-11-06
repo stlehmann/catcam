@@ -11,7 +11,7 @@ from dash.exceptions import PreventUpdate
 
 from cv import process_image, frame_to_base64
 
-img_url = "http://192.168.1.179/static/image.jpg"
+img_url = "http://192.168.1.179/image"
 
 stream_img = html.Img(id="stream-img")
 update_interval = dcc.Interval(id="update-interval", interval=1000)
