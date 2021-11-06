@@ -1,4 +1,5 @@
 cv2
 dash
+dash-bootstrap-components
 imutils
 rtsp
