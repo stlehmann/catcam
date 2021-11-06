@@ -89,7 +89,7 @@ def update_captured_images(n_clicks):
     for p in capture_path.iterdir():
         children.append(
             html.Div(
-                html.Div(html.A(html.I(className="fas fa-minus-circle"), href="#"), className="captureRemoveDiv hide"),
+                html.Div(html.I(className="fas fa-minus-circle"), role="button", className="captureRemoveDiv hide"),
                 className="captureDiv",
                 style={"background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')"},
             )
