@@ -22,7 +22,7 @@ update_interval = dcc.Interval(id="update-interval", interval=1000)
 refresh_captured_images_button = dbc.Button("Refresh", id="refresh-captured-images-button")
 capture_div = html.Div(id="capture-div", style={"margin-top": "15px", "display": "flex", "flex-wrap": "wrap"})
 
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
 
 layout = html.Div([
     dbc.Container([
@@ -89,14 +89,9 @@ def update_captured_images(n_clicks):
     for p in capture_path.iterdir():
         children.append(
             html.Div(
-                style={
-                    "background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')",
-                    "background-repeat": "no-repeat",
-                    "border": "1px solid",
-                    "width": "100px",
-                    "height": "100px",
-                    "margin": "5px",
-                }
+                html.Div(html.A(html.I(className="fas fa-minus-circle"), href="#"), className="captureRemoveDiv hide"),
+                className="captureDiv",
+                style={"background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')"},
             )
         )
     return children

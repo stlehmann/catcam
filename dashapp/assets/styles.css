@@ -1,0 +1,26 @@
+
+.hide {
+    display: none;
+}
+
+.captureRemoveDiv {
+    position: relative;
+    right: 5px;
+    top: 0px;
+    float: right;
+    font-size: 15px;
+}
+
+.captureDiv {
+    background-repeat: no-repeat;
+    background-size: contain;
+    border: 1px solid;
+    width: 125px;
+    height: 125px;
+    margin: 5px;
+    position: relative;
+}
+
+.captureDiv:hover .hide {
+    display: block;
+}
