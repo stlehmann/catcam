@@ -1,4 +1,5 @@
 import datetime
+import json
 import os
 import pathlib
 from urllib.request import urlopen
@@ -6,8 +7,8 @@ from urllib.request import urlopen
 import cv2
 import dash_bootstrap_components as dbc
 import numpy as np
-from dash import Dash, dcc, html
-from dash.dependencies import Output, Input, State
+from dash import Dash, dcc, html, callback_context
+from dash.dependencies import Output, Input, State, MATCH, ALL
 from dash.exceptions import PreventUpdate
 
 from cv import process_image, frame_to_base64
@@ -89,12 +90,32 @@ def update_captured_images(n_clicks):
     for p in capture_path.iterdir():
         children.append(
             html.Div(
-                html.Div(html.I(className="fas fa-minus-circle"), role="button", className="captureRemoveDiv hide"),
+                html.Div(
+                    html.I(className="fas fa-minus-circle"),
+                    id={"type": "remove-capture-button", "index": p.name},
+                    role="button",
+                    className="captureRemoveDiv hide"
+                ),
                 className="captureDiv",
                 style={"background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')"},
             )
         )
     return children
+
+
+@app.callback(
+    Output(refresh_captured_images_button.id, "n_clicks"),
+    Input({"type": "remove-capture-button", "index": ALL}, "n_clicks"),
+    prevent_initial_call=True
+)
+def remove_captured_image(n_clicks):
+    id_ = ".".join(callback_context.triggered[0]["prop_id"].split(".")[:-1])
+    print(id_)
+    id_ = json.loads(id_)["index"]
+    p = capture_path / id_
+    p.unlink()
+    return 0
+
 
 
 if __name__ == "__main__":
