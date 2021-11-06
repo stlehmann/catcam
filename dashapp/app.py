@@ -20,7 +20,7 @@ stream_img = html.Img(id="stream-img")
 capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")
 update_interval = dcc.Interval(id="update-interval", interval=1000)
 refresh_captured_images_button = dbc.Button("Refresh", id="refresh-captured-images-button")
-capture_div = html.Div(id="capture-div")
+capture_div = html.Div(id="capture-div", style={"margin-top": "15px", "display": "flex", "flex-wrap": "wrap"})
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -85,14 +85,21 @@ def refresh_image(n_intervals: int, capture: bool):
     Input(refresh_captured_images_button.id, "n_clicks"),
 )
 def update_captured_images(n_clicks):
-    print("refresh")
     children = []
     for p in capture_path.iterdir():
         children.append(
-            html.Img(src=app.get_asset_url(f"captures/{p.name}"))
+            html.Div(
+                style={
+                    "background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')",
+                    "background-repeat": "no-repeat",
+                    "border": "1px solid",
+                    "width": "100px",
+                    "height": "100px",
+                    "margin": "5px",
+                }
+            )
         )
     return children
-
 
 
 if __name__ == "__main__":
