@@ -23,7 +23,7 @@ with db.Session() as session:
     labels = session.query(db.Label).all()
 
 img_url = "http://192.168.1.179/image"
-capture_path = pathlib.Path(os.curdir) / "dashapp/assets/captures"
+unlabelled_path = pathlib.Path(os.curdir) / "dashapp/assets/unlabelled"
 labelled_path = pathlib.Path(os.curdir) / "dashapp/assets/labelled"
 
 stream_img = html.Img(id="stream-img")
@@ -88,7 +88,7 @@ def refresh_image(n_intervals: int, capture: bool):
             section = img[y:y+h, x:x+w]
             dt = datetime.datetime.now()
             fn = f"{dt:%Y-%m-%d_%H-%M-%S}_{i:02}.jpg"
-            cv2.imwrite(str(capture_path / fn), section)
+            cv2.imwrite(str(unlabelled_path / fn), section)
             print(f"captured {fn}")
 
     return frame_to_base64(annotated_img)
@@ -101,7 +101,7 @@ def refresh_image(n_intervals: int, capture: bool):
 )
 def update_captured_images(n_clicks, children):
     children = []
-    for p in capture_path.iterdir():
+    for p in unlabelled_path.iterdir():
         children.append(
             html.Div(
                 [
@@ -139,7 +139,7 @@ def remove_captured_image(n_clicks):
     if value is None:
         raise PreventUpdate
 
-    p = capture_path / id_
+    p = unlabelled_path / id_
     p.unlink()
     return 0
 
@@ -158,7 +158,7 @@ def label_captured_image(value):
     if value is None:
         raise PreventUpdate
 
-    src_p = capture_path / id_
+    src_p = unlabelled_path / id_
     dst_p = labelled_path / value / id_
     shutil.move(src_p, dst_p)
     return 0
