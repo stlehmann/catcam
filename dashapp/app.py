@@ -119,7 +119,7 @@ def update_captured_images(n_clicks, children):
                     ),
                 ],
                 className="captureDiv",
-                style={"background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')"},
+                style={"background-image": "url('" + app.get_asset_url(f"unlabelled/{p.name}") + "')"},
             )
         )
     return children
@@ -159,7 +159,7 @@ def label_captured_image(value):
         raise PreventUpdate
 
     src_p = unlabelled_path / id_
-    dst_p = labelled_path / value / id_
+    dst_p = labelled_path / id_
     shutil.move(src_p, dst_p)
     return 0
 
