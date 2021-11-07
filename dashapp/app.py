@@ -109,14 +109,17 @@ def update_captured_images(n_clicks):
     prevent_initial_call=True
 )
 def remove_captured_image(n_clicks):
-    id_ = ".".join(callback_context.triggered[0]["prop_id"].split(".")[:-1])
-    print(id_)
+    triggered = callback_context.triggered[0]
+    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
+    value = triggered["value"]
+    if value is None:
+        raise PreventUpdate
+
     id_ = json.loads(id_)["index"]
     p = capture_path / id_
     p.unlink()
     return 0
 
 
-
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", port=80, debug=True)
+    app.run_server(host="0.0.0.0", port=80, debug=False)
