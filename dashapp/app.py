@@ -1,7 +1,11 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import datetime
 import json
 import os
 import pathlib
+import shutil
 from urllib.request import urlopen
 
 import cv2
@@ -12,16 +16,24 @@ from dash.dependencies import Output, Input, State, MATCH, ALL
 from dash.exceptions import PreventUpdate
 
 from cv import process_image, frame_to_base64
+import db
 
-labels = ["unknown", "cat", "hooman"]
+# query available labels from database
+with db.Session() as session:
+    labels = session.query(db.Label).all()
+
 img_url = "http://192.168.1.179/image"
-capture_path = pathlib.Path(os.curdir) / "dashapp" / "assets" / "captures"
+capture_path = pathlib.Path(os.curdir) / "dashapp/assets/captures"
+labelled_path = pathlib.Path(os.curdir) / "dashapp/assets/labelled"
 
 stream_img = html.Img(id="stream-img")
 capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")
 update_interval = dcc.Interval(id="update-interval", interval=1000)
 refresh_captured_images_button = dbc.Button("Refresh", id="refresh-captured-images-button")
 capture_div = html.Div(id="capture-div", style={"margin-top": "15px", "display": "flex", "flex-wrap": "wrap"})
+
+# dummies
+label_dummy_div = html.Div(id="label-dummy-div", hidden=True)
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
 
@@ -49,6 +61,7 @@ layout = html.Div([
            ]),
         ]),
     ]),
+    label_dummy_div,
 ])
 app.layout = layout
 
@@ -84,18 +97,27 @@ def refresh_image(n_intervals: int, capture: bool):
 @app.callback(
     Output(capture_div.id, "children"),
     Input(refresh_captured_images_button.id, "n_clicks"),
+    Input(label_dummy_div.id, "children"),
 )
-def update_captured_images(n_clicks):
+def update_captured_images(n_clicks, children):
     children = []
     for p in capture_path.iterdir():
         children.append(
             html.Div(
-                html.Div(
-                    html.I(className="fas fa-minus-circle"),
-                    id={"type": "remove-capture-button", "index": p.name},
-                    role="button",
-                    className="captureRemoveDiv hide"
-                ),
+                [
+                    html.Div(
+                        html.I(className="fas fa-minus-circle"),
+                        id={"type": "remove-capture-button", "index": p.name},
+                        role="button",
+                        className="captureRemoveDiv hide"
+                    ),
+                    dcc.Dropdown(
+                        options=[{"label": label.name, "value": label.id} for label in labels],
+                        multi=True,
+                        id={"type": "select-label-dropdown", "index": p.name},
+                        className="labelDropdown hide"
+                    ),
+                ],
                 className="captureDiv",
                 style={"background-image": "url('" + app.get_asset_url(f"captures/{p.name}") + "')"},
             )
@@ -110,16 +132,36 @@ def update_captured_images(n_clicks):
 )
 def remove_captured_image(n_clicks):
     triggered = callback_context.triggered[0]
-    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
     value = triggered["value"]
+    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
+    id_ = json.loads(id_)["index"]
+
     if value is None:
         raise PreventUpdate
 
-    id_ = json.loads(id_)["index"]
     p = capture_path / id_
     p.unlink()
     return 0
 
+
+@app.callback(
+    Output(label_dummy_div.id, "children"),
+    Input({"type": "select-label-dropdown", "index": ALL}, "value"),
+    prevent_initial_call=True,
+)
+def label_captured_image(value):
+    triggered = callback_context.triggered[0]
+    value = triggered["value"]
+    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
+    id_ = json.loads(id_)["index"]
+
+    if value is None:
+        raise PreventUpdate
+
+    src_p = capture_path / id_
+    dst_p = labelled_path / value / id_
+    shutil.move(src_p, dst_p)
+    return 0
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=80, debug=False)

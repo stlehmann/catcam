@@ -25,3 +25,9 @@
 .captureDiv:hover .hide {
     display: block;
 }
+
+.captureDiv .labelDropdown {
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+}

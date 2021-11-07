@@ -2,4 +2,7 @@ cv2
 dash
 dash-bootstrap-components
 imutils
+pymysql
+python-dotenv
 rtsp
+sqlalchemy
