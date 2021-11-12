@@ -32,6 +32,18 @@ update_interval = dcc.Interval(id="update-interval", interval=1000)
 refresh_captured_images_button = dbc.Button("Refresh", id="refresh-captured-images-button")
 capture_div = html.Div(id="capture-div", style={"margin-top": "15px", "display": "flex", "flex-wrap": "wrap"})
 
+# modals
+label_modal = dbc.Modal([
+    dbc.ModalHeader(dbc.ModalTitle("Add Labels")),
+    dbc.ModalBody([
+        dbc.Checklist(options=[{"label": label.name, "value": label.id} for label in labels], id="label-modal-checklist"),
+    ]),
+    dbc.ModalFooter([
+        dbc.Button("OK", id="label-modal-ok-button"),
+    ]),
+    html.Div(id="label-modal-image-id-div", hidden=True),
+], id="label-modal", is_open=False)
+
 # dummies
 label_dummy_div = html.Div(id="label-dummy-div", hidden=True)
 
@@ -62,6 +74,7 @@ layout = html.Div([
         ]),
     ]),
     label_dummy_div,
+    label_modal
 ])
 app.layout = layout
 
@@ -118,6 +131,7 @@ def update_captured_images(n_clicks, children):
                         className="labelDropdown hide"
                     ),
                 ],
+                id={"type": "image-div", "index": p.name},
                 className="captureDiv",
                 style={"background-image": "url('" + app.get_asset_url(f"unlabelled/{p.name}") + "')"},
             )
@@ -162,6 +176,23 @@ def label_captured_image(value):
     dst_p = labelled_path / id_
     shutil.move(src_p, dst_p)
     return 0
+
+
+@app.callback(
+    Output(label_modal.id, "is_open"),
+    Input({"type": "image-div", "index": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_label_modal(n_clicks):
+    triggered = callback_context.triggered[0]
+    value = triggered["value"]
+    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
+    id_ = json.loads(id_)["index"]
+
+    if value is None:
+        raise PreventUpdate
+
+    return True
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=80, debug=False)
