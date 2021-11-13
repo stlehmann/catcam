@@ -8,7 +8,6 @@ import datetime
 import json
 import os
 import pathlib
-import shutil
 from urllib.request import urlopen
 
 import cv2
@@ -27,15 +26,17 @@ import db
 with db.Session() as session:
     labels = session.query(db.Label).all()
 
-img_url = "http://192.168.1.179/image"
-unlabelled_path = pathlib.Path(os.curdir) / "dashapp/assets/unlabelled"
-labelled_path = pathlib.Path(os.curdir) / "dashapp/assets/labelled"
 
+STREAM_URL = "http://192.168.1.179/image"
+IMAGE_PATH = pathlib.Path(os.curdir) / "dashapp/assets/unlabelled"
+
+
+# dash objects
 stream_img = html.Img(id="stream-img")  # display actual stream
 capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")  # enable / disable capturing
 update_interval = dcc.Interval(id="update-interval", interval=1000)  # interval for updating stream image
 refresh_captured_images_button = dbc.Button(html.I(className="fas fa-sync"), id="refresh-captured-images-button")  # update captured images
-capture_div = html.Div(id="capture-div")  # display captured images
+image_list_div = html.Div(id="image-list-div")  # display captured images
 
 image_filter_options =[
     {"label": "No Filter", "value": "no filter"},
@@ -61,8 +62,6 @@ label_modal = dbc.Modal([
     html.Div(id="label-modal-image-id-div", hidden=True),
 ], id="label-modal", is_open=False)
 
-# dummies
-label_dummy_div = html.Div(id="label-dummy-div", hidden=True)
 
 app = DashProxy(
     __name__,
@@ -98,11 +97,10 @@ layout = html.Div([
                     image_filter_select,
                     refresh_captured_images_button,
                 ]),
-                capture_div,
+                image_list_div,
             ]),
         ]),
     ]),
-    label_dummy_div,
     label_modal
 ])
 app.layout = layout
@@ -114,7 +112,7 @@ app.layout = layout
     State(capture_checkbox.id, "value"),
 )
 def update_stream(n_intervals: int, capture: bool):
-    resp = urlopen(img_url)
+    resp = urlopen(STREAM_URL)
     img = cv2.imdecode(np.frombuffer(resp.read(), np.uint8), cv2.IMREAD_COLOR)
 
     # preprocessing
@@ -130,7 +128,7 @@ def update_stream(n_intervals: int, capture: bool):
             section = img[y:y+h, x:x+w]
             dt = datetime.datetime.now()
             fn = f"{dt:%Y-%m-%d_%H-%M-%S}_{i:02}.jpg"
-            cv2.imwrite(str(unlabelled_path / fn), section)
+            cv2.imwrite(str(IMAGE_PATH / fn), section)
 
             with db.Session() as session:
                 db_image = db.Image()
@@ -138,13 +136,11 @@ def update_stream(n_intervals: int, capture: bool):
                 session.add(db_image)
                 session.commit()
 
-            print(f"captured {fn}")
-
     return frame_to_base64(annotated_img)
 
 
 @app.callback(
-    Output(capture_div.id, "children"),
+    Output(image_list_div.id, "children"),
     Input(refresh_captured_images_button.id, "n_clicks"),
     Input(image_filter_select.id, "value"),
 )
@@ -204,7 +200,7 @@ def remove_image(n_clicks):
         session.commit()
 
     # remove image file
-    p = unlabelled_path / image_name
+    p = IMAGE_PATH / image_name
     p.unlink()
     return 0
 
