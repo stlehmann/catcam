@@ -2,8 +2,6 @@ from collections import namedtuple
 
 from dotenv import load_dotenv
 
-from dashapp.helpers import get_trigger
-
 load_dotenv()
 
 import datetime
@@ -142,12 +140,6 @@ def update_captured_images(n_clicks, children):
                         role="button",
                         className="captureRemoveDiv hide"
                     ),
-                    dcc.Dropdown(
-                        options=[{"label": label.name, "value": label.id} for label in labels],
-                        multi=True,
-                        id={"type": "select-label-dropdown", "index": p.name},
-                        className="labelDropdown hide"
-                    ),
                 ],
                 id={"type": "image-div", "index": p.name},
                 className="captureDiv",
@@ -166,33 +158,20 @@ def remove_captured_image(n_clicks):
     triggered = callback_context.triggered[0]
     value = triggered["value"]
     id_ = ".".join(triggered["prop_id"].split(".")[:-1])
-    id_ = json.loads(id_)["index"]
+    image_name = id_ = json.loads(id_)["index"]
 
     if value is None:
         raise PreventUpdate
 
-    p = unlabelled_path / id_
+    # remove image from database
+    with db.Session() as session:
+        db_image = session.query(db.Image).filter_by(name=image_name).one()
+        session.delete(db_image)
+        session.commit()
+
+    # remove image file
+    p = unlabelled_path / image_name
     p.unlink()
-    return 0
-
-
-@app.callback(
-    Output(label_dummy_div.id, "children"),
-    Input({"type": "select-label-dropdown", "index": ALL}, "value"),
-    prevent_initial_call=True,
-)
-def label_captured_image(value):
-    triggered = callback_context.triggered[0]
-    value = triggered["value"]
-    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
-    id_ = json.loads(id_)["index"]
-
-    if value is None:
-        raise PreventUpdate
-
-    src_p = unlabelled_path / id_
-    dst_p = labelled_path / id_
-    shutil.move(src_p, dst_p)
     return 0
 
 
@@ -240,4 +219,4 @@ def open_label_modal(n_images, n_ok_button, checked_label_ids, image_name):
 
 
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", port=80, debug=True)
+    app.run_server(host="0.0.0.0", port=80, debug=False)
