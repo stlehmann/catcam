@@ -32,12 +32,19 @@ IMAGE_PATH = pathlib.Path(os.curdir) / "dashapp/assets/unlabelled"
 
 
 # dash objects
+# streaming
 stream_img = html.Img(id="stream-img")  # display actual stream
-capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")  # enable / disable capturing
 update_interval = dcc.Interval(id="update-interval", interval=1000)  # interval for updating stream image
+
+# capturing
+capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")  # enable / disable capturing
+capture_count_input = dbc.Input(id="capture-count-input", type="number", min=0, max=100, value=10)
+capture_count_store = dcc.Store(id="capture-count-store", storage_type="memory")
+capture_count_display_div = html.Div(id="capture-count-display-div")
 refresh_captured_images_button = dbc.Button(html.I(className="fas fa-sync"), id="refresh-captured-images-button")  # update captured images
 image_list_div = html.Div(id="image-list-div")  # display captured images
 
+# image filter
 image_filter_options =[
     {"label": "No Filter", "value": "no filter"},
     {"label": "Unlabeled", "value": "unlabeled"}
@@ -48,7 +55,6 @@ image_filter_select = dbc.Select(
     options=image_filter_options,
     value=None,
 )
-
 
 # modals
 label_modal = dbc.Modal([
@@ -72,7 +78,7 @@ app = DashProxy(
 layout = html.Div([
     dbc.Navbar([
         dbc.Container([
-            dbc.NavbarBrand("CatCAM"),
+            dbc.NavbarBrand("CatCam"),
         ]),
     ], dark=True, color="dark"),
     dbc.Container([
@@ -84,7 +90,13 @@ layout = html.Div([
         dbc.Row([
             dbc.Col([
                 capture_checkbox,
-            ]),
+            ], width="auto"),
+            dbc.Col([
+                capture_count_display_div,
+            ], width="auto"),
+            dbc.Col([
+                capture_count_input,
+            ], width="auto"),
         ]),
         dbc.Row([
             dbc.Col([
@@ -97,21 +109,44 @@ layout = html.Div([
                     image_filter_select,
                     refresh_captured_images_button,
                 ]),
+            ]),
+        ]),
+        dbc.Row([
+            dbc.Col([
                 image_list_div,
             ]),
         ]),
     ]),
-    label_modal
+    label_modal,
+    capture_count_store,
 ])
 app.layout = layout
 
 
 @app.callback(
-    Output(stream_img.id, "src"),
-    Input(update_interval.id, "n_intervals"),
+    Output(capture_count_display_div.id, "children"),
+    Input(capture_count_store.id, "data"),
     State(capture_checkbox.id, "value"),
 )
-def update_stream(n_intervals: int, capture: bool):
+def display_progress(n_captures, capture_enabled):
+    if capture_enabled:
+        return f"{n_captures} of "
+    else:
+        return ""
+
+
+@app.callback(
+    Output(stream_img.id, "src"),
+    Output(capture_count_store.id, "data"),
+    Output(capture_checkbox.id, "value"),
+    Input(update_interval.id, "n_intervals"),
+    State(capture_checkbox.id, "value"),
+    State(capture_count_store.id, "data"),
+    State(capture_count_input.id, "value"),
+)
+def update_stream(n_intervals: int, capture_enabled: bool, n_captures: int, max_n_captures: int):
+    RetVal = namedtuple("RetVal", ["frame_src", "n_captures", "enable_capture"])
+
     resp = urlopen(STREAM_URL)
     img = cv2.imdecode(np.frombuffer(resp.read(), np.uint8), cv2.IMREAD_COLOR)
 
@@ -123,7 +158,7 @@ def update_stream(n_intervals: int, capture: bool):
     for (x, y, w, h) in rects:
         cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-    if capture:
+    if capture_enabled:
         for i, (x, y, w, h) in enumerate(rects, start=1):
             section = img[y:y+h, x:x+w]
             dt = datetime.datetime.now()
@@ -136,7 +171,15 @@ def update_stream(n_intervals: int, capture: bool):
                 session.add(db_image)
                 session.commit()
 
-    return frame_to_base64(annotated_img)
+            n_captures += 1
+    else:
+        n_captures = 0
+
+    return RetVal(
+        frame_src=frame_to_base64(annotated_img),
+        n_captures=n_captures,
+        enable_capture=no_update if max_n_captures is None or n_captures < max_n_captures else False,
+    )
 
 
 @app.callback(

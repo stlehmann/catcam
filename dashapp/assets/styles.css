@@ -1,5 +1,4 @@
 #image-list-div {
-    margin-top: 15px;
     display: flex;
     flex-wrap: wrap;
 }
@@ -49,4 +48,8 @@
 
 .navbar {
     margin-bottom: 15px;
+}
+
+.row {
+    margin-bottom: 10px;
 }
