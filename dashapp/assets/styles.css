@@ -4,7 +4,7 @@
 }
 
 .captureRemoveDiv {
-    position: relative;
+    position: absolute;
     right: 5px;
     top: 0px;
     float: right;
@@ -20,6 +20,13 @@
     height: 125px;
     margin: 5px;
     position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.captureDiv.editButton {
+
 }
 
 .captureDiv:hover .hide {

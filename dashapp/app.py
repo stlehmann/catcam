@@ -140,6 +140,11 @@ def update_captured_images(n_clicks, children):
                         role="button",
                         className="captureRemoveDiv hide"
                     ),
+                    dbc.Button(
+                        "Labels",
+                        className="editButton hide",
+                        id={"type": "edit-capture-button", "index": p.name}
+                    ),
                 ],
                 id={"type": "image-div", "index": p.name},
                 className="captureDiv",
@@ -179,7 +184,7 @@ def remove_captured_image(n_clicks):
     Output(label_modal.id, "is_open"),
     Output("label-modal-image-id-div", "children"),
     Output("label-modal-checklist", "value"),
-    Input({"type": "image-div", "index": ALL}, "n_clicks"),
+    Input({"type": "edit-capture-button", "index": ALL}, "n_clicks"),
     Input("label-modal-ok-button", "n_clicks"),
     State("label-modal-checklist", "value"),
     State("label-modal-image-id-div", "children"),
