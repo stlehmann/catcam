@@ -1,3 +1,11 @@
+#capture-div {
+    margin-top: 15px;
+    display: flex;
+    flex-wrap: wrap;
+}
+#stream-img {
+    margin-bottom: 15px;
+}
 
 .hide {
     display: none;
@@ -37,4 +45,8 @@
     position: absolute;
     bottom: 0px;
     width: 100%;
+}
+
+.navbar {
+    margin-bottom: 15px;
 }

@@ -31,11 +31,23 @@ img_url = "http://192.168.1.179/image"
 unlabelled_path = pathlib.Path(os.curdir) / "dashapp/assets/unlabelled"
 labelled_path = pathlib.Path(os.curdir) / "dashapp/assets/labelled"
 
-stream_img = html.Img(id="stream-img")
-capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")
-update_interval = dcc.Interval(id="update-interval", interval=1000)
-refresh_captured_images_button = dbc.Button("Refresh", id="refresh-captured-images-button")
-capture_div = html.Div(id="capture-div", style={"margin-top": "15px", "display": "flex", "flex-wrap": "wrap"})
+stream_img = html.Img(id="stream-img")  # display actual stream
+capture_checkbox = dbc.Switch(id="capture-checkbox", label="Capture")  # enable / disable capturing
+update_interval = dcc.Interval(id="update-interval", interval=1000)  # interval for updating stream image
+refresh_captured_images_button = dbc.Button(html.I(className="fas fa-sync"), id="refresh-captured-images-button")  # update captured images
+capture_div = html.Div(id="capture-div")  # display captured images
+
+image_filter_options =[
+    {"label": "No Filter", "value": "no filter"},
+    {"label": "Unlabeled", "value": "unlabeled"}
+]
+image_filter_options.extend([{"label": label.name, "value": label.id} for label in labels])
+image_filter_select = dbc.Select(
+    id="image-filter-select",
+    options=image_filter_options,
+    value=None,
+)
+
 
 # modals
 label_modal = dbc.Modal([
@@ -46,7 +58,7 @@ label_modal = dbc.Modal([
     dbc.ModalFooter([
         dbc.Button("OK", id="label-modal-ok-button"),
     ]),
-    html.Div(id="label-modal-image-id-div", hidden=False),
+    html.Div(id="label-modal-image-id-div", hidden=True),
 ], id="label-modal", is_open=False)
 
 # dummies
@@ -54,11 +66,16 @@ label_dummy_div = html.Div(id="label-dummy-div", hidden=True)
 
 app = DashProxy(
     __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
+    external_stylesheets=[dbc.themes.SKETCHY, dbc.icons.FONT_AWESOME],
     transforms=[TriggerTransform(), MultiplexerTransform()],
 )
 
 layout = html.Div([
+    dbc.Navbar([
+        dbc.Container([
+            dbc.NavbarBrand("CatCAM"),
+        ]),
+    ], dark=True, color="dark"),
     dbc.Container([
         dbc.Row([
             dbc.Col([
@@ -76,10 +93,13 @@ layout = html.Div([
             ]),
         ]) ,
         dbc.Row([
-           dbc.Col([
-               refresh_captured_images_button,
-               capture_div,
-           ]),
+            dbc.Col([
+                dbc.InputGroup([
+                    image_filter_select,
+                    refresh_captured_images_button,
+                ]),
+                capture_div,
+            ]),
         ]),
     ]),
     label_dummy_div,
@@ -93,7 +113,7 @@ app.layout = layout
     Input(update_interval.id, "n_intervals"),
     State(capture_checkbox.id, "value"),
 )
-def refresh_image(n_intervals: int, capture: bool):
+def update_stream(n_intervals: int, capture: bool):
     resp = urlopen(img_url)
     img = cv2.imdecode(np.frombuffer(resp.read(), np.uint8), cv2.IMREAD_COLOR)
 
@@ -126,29 +146,38 @@ def refresh_image(n_intervals: int, capture: bool):
 @app.callback(
     Output(capture_div.id, "children"),
     Input(refresh_captured_images_button.id, "n_clicks"),
-    Input(label_dummy_div.id, "children"),
+    Input(image_filter_select.id, "value"),
 )
-def update_captured_images(n_clicks, children):
+def update_images(n_btn, filter_value):
     children = []
-    for p in unlabelled_path.iterdir():
+
+    with db.Session() as session:
+        if filter_value is None or filter_value == "no filter":
+            images = session.query(db.Image).all()
+        elif filter_value == "unlabeled":
+            images = session.query(db.Image).filter(~db.Image.labels.any()).all()
+        else:
+            images = session.query(db.Image).filter(db.Image.labels.any(db.Label.id == filter_value)).all()
+
+    for image in images:
         children.append(
             html.Div(
                 [
                     html.Div(
                         html.I(className="fas fa-minus-circle"),
-                        id={"type": "remove-capture-button", "index": p.name},
+                        id={"type": "remove-capture-button", "index": image.name},
                         role="button",
                         className="captureRemoveDiv hide"
                     ),
                     dbc.Button(
                         "Labels",
                         className="editButton hide",
-                        id={"type": "edit-capture-button", "index": p.name}
+                        id={"type": "edit-capture-button", "index": image.name}
                     ),
                 ],
-                id={"type": "image-div", "index": p.name},
+                id={"type": "image-div", "index": image.name},
                 className="captureDiv",
-                style={"background-image": "url('" + app.get_asset_url(f"unlabelled/{p.name}") + "')"},
+                style={"background-image": "url('" + app.get_asset_url(f"unlabelled/{image.name}") + "')"},
             )
         )
     return children
@@ -159,7 +188,7 @@ def update_captured_images(n_clicks, children):
     Input({"type": "remove-capture-button", "index": ALL}, "n_clicks"),
     prevent_initial_call=True
 )
-def remove_captured_image(n_clicks):
+def remove_image(n_clicks):
     triggered = callback_context.triggered[0]
     value = triggered["value"]
     id_ = ".".join(triggered["prop_id"].split(".")[:-1])
