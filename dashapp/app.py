@@ -1,4 +1,9 @@
+from collections import namedtuple
+
 from dotenv import load_dotenv
+
+from dashapp.helpers import get_trigger
+
 load_dotenv()
 
 import datetime
@@ -11,9 +16,11 @@ from urllib.request import urlopen
 import cv2
 import dash_bootstrap_components as dbc
 import numpy as np
-from dash import Dash, dcc, html, callback_context
+from dash import Dash, dcc, html, callback_context, no_update
 from dash.dependencies import Output, Input, State, MATCH, ALL
 from dash.exceptions import PreventUpdate
+from dash_extensions.enrich import DashProxy, TriggerTransform, MultiplexerTransform
+
 
 from cv import process_image, frame_to_base64
 import db
@@ -41,13 +48,17 @@ label_modal = dbc.Modal([
     dbc.ModalFooter([
         dbc.Button("OK", id="label-modal-ok-button"),
     ]),
-    html.Div(id="label-modal-image-id-div", hidden=True),
+    html.Div(id="label-modal-image-id-div", hidden=False),
 ], id="label-modal", is_open=False)
 
 # dummies
 label_dummy_div = html.Div(id="label-dummy-div", hidden=True)
 
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
+app = DashProxy(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
+    transforms=[TriggerTransform(), MultiplexerTransform()],
+)
 
 layout = html.Div([
     dbc.Container([
@@ -102,6 +113,13 @@ def refresh_image(n_intervals: int, capture: bool):
             dt = datetime.datetime.now()
             fn = f"{dt:%Y-%m-%d_%H-%M-%S}_{i:02}.jpg"
             cv2.imwrite(str(unlabelled_path / fn), section)
+
+            with db.Session() as session:
+                db_image = db.Image()
+                db_image.name = fn
+                session.add(db_image)
+                session.commit()
+
             print(f"captured {fn}")
 
     return frame_to_base64(annotated_img)
@@ -180,19 +198,46 @@ def label_captured_image(value):
 
 @app.callback(
     Output(label_modal.id, "is_open"),
+    Output("label-modal-image-id-div", "children"),
+    Output("label-modal-checklist", "value"),
     Input({"type": "image-div", "index": ALL}, "n_clicks"),
+    Input("label-modal-ok-button", "n_clicks"),
+    State("label-modal-checklist", "value"),
+    State("label-modal-image-id-div", "children"),
     prevent_initial_call=True,
 )
-def open_label_modal(n_clicks):
-    triggered = callback_context.triggered[0]
-    value = triggered["value"]
-    id_ = ".".join(triggered["prop_id"].split(".")[:-1])
-    id_ = json.loads(id_)["index"]
+def open_label_modal(n_images, n_ok_button, checked_label_ids, image_name):
 
-    if value is None:
+    ReturnValues = namedtuple("ReturnValues", ["modal_is_open", "image_name", "checked_label_ids"])
+
+    trigger = callback_context.triggered[0]
+    trigger_id = trigger["prop_id"]
+    trigger_value = trigger["value"]
+
+    # OK-button pressed: Add labels to image
+    if trigger_id.split(".")[0] == "label-modal-ok-button":
+        with db.Session() as session:
+            db_img = session.query(db.Image).filter_by(name=image_name).one()
+            db_labels = session.query(db.Label).filter(db.Label.id.in_(checked_label_ids)).all()
+            for label in db_labels:
+                db_img.labels.append(label)
+            session.add(db_img)
+            session.commit()
+        return ReturnValues(modal_is_open=False, image_name=no_update, checked_label_ids=no_update)
+
+    # Image clicked: Open modal
+    trigger_id = ".".join(trigger["prop_id"].split(".")[:-1])
+    image_name = trigger_id = json.loads(trigger_id)["index"]  # the trigger id is the filename of the image
+
+    with db.Session() as session:
+        db_image = session.query(db.Image).filter_by(name=image_name).one()
+        label_ids = [label.id for label in db_image.labels]
+
+    if trigger_value is None:
         raise PreventUpdate
 
-    return True
+    return ReturnValues(modal_is_open=True, image_name=image_name, checked_label_ids=label_ids)
+
 
 if __name__ == "__main__":
-    app.run_server(host="0.0.0.0", port=80, debug=False)
+    app.run_server(host="0.0.0.0", port=80, debug=True)
